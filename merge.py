@@ -5,7 +5,8 @@ def lastHash(a,b):
     whereb=b.rfind('#')
     return int(a[wherea+1:])-int(b[whereb+1:])
 def unHash(a):
-    return a[0:a.rfind('#')]
+    where=a.rfind('#')
+    return a[0:where]
 def equivalent(a,b):
     return unHash(a)==unHash(b);
 counter=0
@@ -69,57 +70,46 @@ def getValues(obj,propName):
         retval+=[obj[key]];
     return retval;
 def getSingle(obj,propName):
-    retval = getProperties(obj,propName)
+    retval = getValues(obj,propName)
     if (len(retval)):
         return retval[0];
     return None;
-#takes in 3 objects, the parent node, the first object and the second object return a jsonable object
-def mergeObjects (parent,left,right,nodeNameToMerge):
-    topLevelDoneSoFar={}
-    parentKeys = getAdornedKeys(parent);
+
+def copyKeysBeforeMidOrAfter(retval,parent,left,right,nodeNameToMerge,nodeSecondNameToMerge,targetThird):
     leftKeys = getAdornedKeys(left);
     rightKeys = getAdornedKeys(right);
-    retval={}
-    print "LEFT KEYS "+str(leftKeys)
+    hitcount=0;
     for key in leftKeys:
-        uh = unHash(key)
-        if uh!=nodeNameToMerge:
-            topLevelDoneSoFar[uh]=True
-            copyProperty(retval,left,key)
+        if unHash(key)==nodeNameToMerge or unHash(key)==nodeSecondNameToMerge:
+            hitcount+=1
         else:
-            break;
-    
-    for key in rightKeys:
-        uh = unHash(key)
-        if uh!=nodeNameToMerge:
-            if not (uh in topLevelDoneSoFar):
-                copyProperty(retval,right,key)
-            else:
-                pass
-        else:
-            break;
-    mergeXDESCStates(retval,parent,left,right,nodeNameToMerge);
-    #now do post-game items
-    gameEncountered=False;
-    for key in leftKeys:
-        uh = unHash(key)
-        if uh!=nodeNameToMerge:
-            if gameEncountered:
-                topLevelDoneSoFar[uh]=True
+            if hitcount==targetThird:
                 copyProperty(retval,left,key)
-        else:
-            gameEncountered=True
-    gameEncountered=False;    
+    hitcount=0;
     for key in rightKeys:
-        uh = unHash(key)
-        if uh!=nodeNameToMerge:
-            if gameEncountered:
-                if not (uh in topLevelDoneSoFar):
-                    copyProperty(retval,right,key)
+        if unHash(key)==nodeNameToMerge or unHash(key)==nodeSecondNameToMerge:
+            hitcount+=1
         else:
-            gameEncountered=True
+            if hitcount==targetThird and len(getValues(left,key))==0:#of we're in the target third and left doesn't have this key
+                copyProperty(retval,right,key)
+
+    
+
+#takes in 3 objects, the parent node, the first object and the second object return a jsonable object
+def mergeObjects (parent,left,right,nodeNameToMerge,nodeSecondNameToMerge=None):
+    topLevelDoneSoFar={}
+    retval={}
+    copyKeysBeforeMidOrAfter(retval,parent,left,right,nodeNameToMerge,nodeSecondNameToMerge,0);
+
+    mergeXDESCStates[nodeNameToMerge](retval,parent,left,right,nodeNameToMerge);
+
+    copyKeysBeforeMidOrAfter(retval,parent,left,right,nodeNameToMerge,nodeSecondNameToMerge,1);
+    if nodeSecondNameToMerge:
+        mergeXDESCStates[nodeSecondNameToMerge](retval,parent,left,right,nodeSecondNameToMerge);
+        copyKeysBeforeMidOrAfter(retval,parent,left,right,nodeNameToMerge,nodeSecondNameToMerge,2);
+
     return retval
-def mergeXDESCStates(retval,parent,left,right,XDESC):
+def genericMergeKey(retval,parent,left,right,XDESC):
     pgame=getAdornedTypeKeys(parent,XDESC);
     lgame=getAdornedTypeKeys(left,XDESC);
     rgame=getAdornedTypeKeys(right,XDESC);
@@ -134,18 +124,22 @@ def mergeXDESCStates(retval,parent,left,right,XDESC):
             copyProperty(retval,left,lgame[index])
         elif index<len(rgame):
             copyProperty(retval,right,rgame[index])            
+def mergeCrew(retval,parent,left,right,crewString):
+    pass
+def mergeVessel(retval,parent,left,right,vesselString):
+    pass
+mergeXDESCStates={"GAME":genericMergeKey,"FLIGHTSTATE":genericMergeKey,"CREW":mergeCrew,"VESSEL":mergeVessel}
+
+
+
+############the following functions tell
 def mergeGameStates(parent,left,right):
     return mergeObjects(parent,left,right,"GAME");
 def mergeFlightstateStates(parent,left,right):
     return mergeObjects(parent,left,right,"FLIGHTSTATE");
 
-def mergeTopLevelObjects(parent,left,right):
-    return mergeObjects(parent,left,right,"GAME")
-def mergeGameLevelObjects(parent,left,right):
-    return mergeObjects(parent,left,right,"FLIGHTSTATE")
 def mergeCrewVesselLevelObjects(parent,left,right):
-    #print "Crew Vessel: "+str(getAdornedKeys(left))
-    return {}
+    return mergeObjects(parent,left,right,"CREW","VESSEL")
 
 mergeLevelObjects={"":mergeGameStates,"GAME":mergeFlightstateStates,"FLIGHTSTATE":mergeCrewVesselLevelObjects}
 def merge (parent,left,right):
